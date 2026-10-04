@@ -110,7 +110,7 @@
         <div class="bg-gray-800 text-white p-3 rounded-xl shadow-sm text-xs space-y-1">
             <p class="font-bold text-emerald-400 uppercase tracking-wider">Platform Admin Metrics (Global)</p>
             <div class="flex justify-between">
-                <span>Total Tenants: <strong id="admin-tenants">0</strong></span>
+                <span>Total Tenants: <strong id="admin-tenants">2</strong></span>
                 <span>Total Deliveries: <strong id="admin-deliveries">0</strong></span>
             </div>
         </div>
@@ -150,7 +150,6 @@
             // Calculate global revenue from loaded items
             const totalRev = orders.reduce((acc, o) => acc + (Number(o.amount) || 0), 0);
             document.getElementById('stat-global-rev').innerText = `$${totalRev.toFixed(2)}`;
-            document.getElementById('admin-tenants').innerText = 2; // Active tenants stub
             document.getElementById('admin-deliveries').innerText = orders.length;
 
             if (orders.length === 0) {
@@ -167,18 +166,18 @@
                     card.className = "bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-2";
                     card.innerHTML = `
                         <div class="flex justify-between items-center">
-                            <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">${order.id}</span>
+                            <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">${order.id || 'N/A'}</span>
                             <span class="text-xs font-semibold px-2 py-0.5 rounded border ${badgeColor}">${status}</span>
                         </div>
                         <div>
                             <div class="flex justify-between items-baseline">
-                                <h4 class="font-bold text-gray-900 text-sm">${order.merchant_name}</h4>
-                                <span class="text-sm font-bold text-gray-900">$${Number(order.amount).toFixed(2)}</span>
+                                <h4 class="font-bold text-gray-900 text-sm">${order.merchant_name || 'Unknown'}</h4>
+                                <span class="text-sm font-bold text-gray-900">$${Number(order.amount || 0).toFixed(2)}</span>
                             </div>
-                            <p class="text-xs text-gray-600 mt-0.5">${order.item_details}</p>
-                            <p class="text-xs text-gray-400 mt-1">📍 ${order.zone} | 📱 ${order.phone}</p>
+                            <p class="text-xs text-gray-600 mt-0.5">${order.item_details || ''}</p>
+                            <p class="text-xs text-gray-400 mt-1">📍 ${order.zone || ''} | 📱 ${order.phone || ''}</p>
                             ${order.driver_name ? `<p class="text-xs text-blue-600 font-semibold mt-1">🛵 Darawal: ${order.driver_name}</p>` : ''}
-                            <p class="text-xs text-emerald-600 font-medium mt-1">💳 Bixinta: ${order.payment_status}</p>
+                            <p class="text-xs text-emerald-600 font-medium mt-1">💳 Bixinta: ${order.payment_status || 'Paid'}</p>
                         </div>
                     `;
                     container.appendChild(card);
@@ -214,20 +213,42 @@
                 payment_status: document.getElementById('payment-status').value
             };
 
-            await saveOrderToCloud(formData);
-            document.getElementById('order-form').reset();
-            updateUI();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerText = "Kaydinaya... (Saving)";
+
+            try {
+                await saveOrderToCloud(formData);
+                document.getElementById('order-form').reset();
+                await syncOfflineOrders(); // Attempt background flush of queue
+                await updateUI();
+            } catch (err) {
+                console.error("Submission error:", err);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Keydi Dalabka (Save Order)";
+            }
         });
 
         // Initialize UI on load and setup real-time WebSocket listeners
         window.addEventListener('DOMContentLoaded', async () => {
-            await syncOfflineOrders();
-            updateUI();
+            try {
+                await syncOfflineOrders();
+            } catch(e) {
+                console.warn("Offline sync check skipped:", e);
+            }
+            
+            await updateUI();
 
             // Realtime auto-refresh on changes from Supabase
             subscribeToDeliveries(() => {
                 updateUI();
             });
+
+            // Fallback interval check every 10 seconds to ensure freshness on mobile
+            setInterval(() => {
+                updateUI();
+            }, 10000);
         });
     </script>
 </body>
