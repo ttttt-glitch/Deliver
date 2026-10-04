@@ -1,5 +1,5 @@
 /**
- * Module 2: Cloud Sync Engine (Supabase + Offline Fallback + Realtime)
+ * Module 2: Cloud Sync Engine (Supabase + Realtime)
  */
 import { supabase } from './supabase-config.js';
 import { getCurrentShop } from './auth.js';
@@ -28,7 +28,12 @@ export async function saveOrderToCloud(formData) {
             .from('deliveries')
             .insert([orderRecord]);
 
-        if (error) throw error;
+        if (error) {
+            console.error("Supabase insert error details:", error);
+            throw error;
+        }
+        
+        console.log("Order successfully saved to Supabase cloud!");
         return orderRecord;
     } catch (err) {
         console.warn("Cloud write failed. Storing offline...", err.message);
@@ -39,7 +44,7 @@ export async function saveOrderToCloud(formData) {
         queue.push(orderRecord);
         localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
         
-        console.log("Saved offline successfully");
+        alert("Cloud write warning: Saved offline locally. Check your internet/keys.");
         return orderRecord;
     }
 }
@@ -53,19 +58,9 @@ export async function fetchTenantOrdersCloud(shopId) {
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-
-        // Merge any un-synced offline local items for this tenant
-        const rawQueue = localStorage.getItem(OFFLINE_QUEUE_KEY);
-        const queue = rawQueue ? JSON.parse(rawQueue) : [];
-        const localTenantOrders = queue.filter(o => o.shop_id === shopId);
-
-        // Combine cloud data with local un-synced orders (deduplicated by ID)
-        const cloudIds = new Set(data.map(d => d.id));
-        const uniqueLocal = localTenantOrders.filter(lo => !cloudIds.has(lo.id));
-
-        return [...uniqueLocal, ...data];
+        return data || [];
     } catch (err) {
-        console.warn("Network offline. Falling back to local storage...", err.message);
+        console.warn("Falling back to local storage...", err.message);
         const rawQueue = localStorage.getItem(OFFLINE_QUEUE_KEY);
         const queue = rawQueue ? JSON.parse(rawQueue) : [];
         return queue.filter(o => o.shop_id === shopId);
@@ -83,17 +78,14 @@ export async function syncOfflineOrders() {
 
     for (const order of queue) {
         try {
-            order.synced = true;
             const { error } = await supabase
                 .from('deliveries')
                 .insert([order]);
 
             if (error) {
-                order.synced = false;
                 remainingQueue.push(order);
             }
         } catch (err) {
-            order.synced = false;
             remainingQueue.push(order);
         }
     }
@@ -101,22 +93,15 @@ export async function syncOfflineOrders() {
     localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remainingQueue));
 }
 
-/**
- * Real-time WebSocket Subscription for Live Cross-Screen Updates
- */
 export function subscribeToDeliveries(onUpdateCallback) {
     return supabase
         .channel('public:deliveries')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, (payload) => {
-            console.log('Realtime change received on deliveries table:', payload);
             onUpdateCallback(payload);
         })
         .subscribe();
 }
 
-/**
- * Driver Action: Update delivery status (e.g., Pending -> Accepted -> Delivered)
- */
 export async function updateDeliveryStatus(orderId, newStatus, driverName = 'Driver Garowe') {
     try {
         const { data, error } = await supabase
@@ -129,7 +114,6 @@ export async function updateDeliveryStatus(orderId, newStatus, driverName = 'Dri
             .select();
 
         if (error) throw error;
-        console.log(`Order ${orderId} status updated to ${newStatus} by ${driverName}`);
         return { success: true, data };
     } catch (err) {
         console.error('Error updating order status in cloud:', err.message);
