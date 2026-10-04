@@ -47,14 +47,19 @@
                 return;
             }
 
-            renderDriverOrders(orders);
+            renderDriverOrders(orders || []);
         }
 
         function renderDriverOrders(orders) {
             const container = document.getElementById('driver-orders-container');
             container.innerHTML = '';
             
-            const pendingOrders = orders.filter(o => o.delivery_status === 'Pending' || !o.delivery_status);
+            // Flexible matching for pending status (handles case variations or null/empty)
+            const pendingOrders = orders.filter(o => {
+                const status = (o.delivery_status || 'Pending').toLowerCase();
+                return status === 'pending' || status === '';
+            });
+
             document.getElementById('pending-count').innerText = `${pendingOrders.length} pending`;
 
             if (orders.length === 0) {
@@ -63,18 +68,19 @@
             }
 
             orders.forEach(order => {
-                const isPending = order.delivery_status === 'Pending' || !order.delivery_status;
+                const statusStr = (order.delivery_status || 'Pending').toLowerCase();
+                const isPending = statusStr === 'pending' || statusStr === '';
                 const card = document.createElement('div');
                 card.className = "bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-2";
                 card.innerHTML = `
                     <div class="flex justify-between items-center">
-                        <span class="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">ID: ${order.id.slice(0,6)}</span>
+                        <span class="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">ID: ${order.id ? order.id.slice(0,6) : 'N/A'}</span>
                         <span class="text-xs font-semibold px-2 py-0.5 rounded border ${isPending ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}">${order.delivery_status || 'Pending'}</span>
                     </div>
                     <div>
-                        <h4 class="font-bold text-gray-900 text-sm">${order.merchant_name}</h4>
-                        <p class="text-xs text-gray-600 mt-0.5">📦 ${order.item_details} ($${order.amount})</p>
-                        <p class="text-xs text-gray-400 mt-1">📍 Xaafadda: ${order.zone} | 📱 ${order.phone}</p>
+                        <h4 class="font-bold text-gray-900 text-sm">${order.merchant_name || 'Unknown Merchant'}</h4>
+                        <p class="text-xs text-gray-600 mt-0.5">📦 ${order.item_details || 'No details'} ($${order.amount || 0})</p>
+                        <p class="text-xs text-gray-400 mt-1">📍 Xaafadda: ${order.zone || 'N/A'} | 📱 ${order.phone || 'N/A'}</p>
                     </div>
                     <div class="pt-2 flex gap-2">
                         ${isPending ? `
