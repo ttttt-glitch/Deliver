@@ -6,6 +6,8 @@
     <title>Garowe Express - Multi-Tenant Dispatch</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS CDN (Required for window.supabase client) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <meta name="theme-color" content="#047857">
     <link rel="manifest" href="manifest.webmanifest">
 </head>
@@ -160,7 +162,7 @@
                         <div>
                             <div class="flex justify-between items-baseline">
                                 <h4 class="font-bold text-gray-900 text-sm">${order.merchant_name}</h4>
-                                <span class="text-sm font-bold text-gray-900">$${order.amount.toFixed(2)}</span>
+                                <span class="text-sm font-bold text-gray-900">$${Number(order.amount).toFixed(2)}</span>
                             </div>
                             <p class="text-xs text-gray-600 mt-0.5">${order.item_details}</p>
                             <p class="text-xs text-gray-400 mt-1">📍 ${order.zone} | 📱 ${order.phone}</p>
@@ -194,19 +196,19 @@
             updateUI();
         });
 
-        // Form Submit Handler
-        document.getElementById('order-form').addEventListener('submit', (e) => {
+        // Form Submit Handler (Updated to support async cloud sync)
+        document.getElementById('order-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = {
                 merchant_name: document.getElementById('merchant-name').value,
                 phone: document.getElementById('customer-phone').value,
                 zone: document.getElementById('delivery-zone').value,
                 item_details: document.getElementById('item-details').value,
-                amount: document.getElementById('amount').value,
+                amount: parseFloat(document.getElementById('amount').value),
                 payment_status: document.getElementById('payment-status').value
             };
 
-            saveNewOrder(formData);
+            await saveNewOrder(formData);
             document.getElementById('order-form').reset();
             updateUI();
         });
