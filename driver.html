@@ -29,7 +29,9 @@
         </div>
     </main>
 
-    <script>
+    <script type="module">
+        import { syncOfflineOrders } from './orders-sync.js';
+
         const SUPABASE_URL = "https://caxcppreyuyyobhjjciy.supabase.co/rest/v1";
         const SUPABASE_KEY = "sb_publishable_x3q2HIrBuWLv-AlGQ5LUgQ_uHolKke_";
         const DRIVER_NAME = "Darawal Garowe #1";
@@ -125,7 +127,14 @@
             }
         };
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await syncOfflineOrders();
+                console.log("Forced sync complete!");
+            } catch (e) {
+                console.warn("Sync queue check notice:", e);
+            }
+
             fetchDriverOrders();
             // Auto refresh every 5 seconds as a reliable fallback live mechanism
             setInterval(fetchDriverOrders, 5000);
