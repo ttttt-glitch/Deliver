@@ -1,4 +1,4 @@
-const CACHE_NAME = 'garowe-express-v7';
+const CACHE_NAME = 'garowe-express-v8';
 const ASSETS_TO_CACHE = [
     './index.html',
     './manifest.webmanifest',
