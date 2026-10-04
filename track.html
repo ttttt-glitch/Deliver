@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="so">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garowe Express - Track Order</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans antialiased pb-24">
+
+    <!-- Header -->
+    <header class="bg-emerald-700 text-white p-4 shadow-md sticky top-0 z-50">
+        <div class="max-w-md mx-auto flex justify-between items-center">
+            <h1 class="text-base font-bold tracking-wide">🔍 Raadi Dalabka (Track Order)</h1>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-md mx-auto p-4 space-y-4">
+        
+        <!-- Search Box -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-3">
+            <label class="block text-xs font-bold text-gray-700 uppercase">Geli Number-ka Dalabka (Order ID)</label>
+            <div class="flex gap-2">
+                <input type="text" id="search-input" placeholder="Tusaale: ORD-1234" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none uppercase">
+                <button id="btn-search" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition">Raadi</button>
+            </div>
+        </div>
+
+        <!-- Tracking Result Container -->
+        <div id="result-container" class="space-y-3">
+            <div class="bg-white p-6 rounded-xl text-center text-gray-400 text-sm border border-gray-100">Geli ID-ga dalabka si aad u ogaato xaaladdiisa.</div>
+        </div>
+
+    </main>
+
+    <script type="module">
+        import { supabase } from './supabase-config.js';
+        import { subscribeToDeliveries } from './orders-sync.js';
+
+        let activeTrackedId = null;
+
+        async function trackOrder() {
+            const queryId = document.getElementById('search-input').value.trim();
+            if (!queryId) return;
+            activeTrackedId = queryId;
+
+            const container = document.getElementById('result-container');
+            container.innerHTML = `<div class="bg-white p-6 rounded-xl text-center text-gray-500 text-sm border border-gray-100">Raadinaya...</div>`;
+
+            const { data, error } = await supabase
+                .from('deliveries')
+                .select('*')
+                .ilike('id', `%${queryId}%`)
+                .limit(1);
+
+            if (error || !data || data.length === 0) {
+                container.innerHTML = `<div class="bg-white p-6 rounded-xl text-center text-red-500 text-sm border border-gray-100">Lama helin dalab wata ID-gan. Hubi lambarka.</div>`;
+                return;
+            }
+
+            renderTrackingCard(data[0]);
+        }
+
+        function renderTrackingCard(order) {
+            const container = document.getElementById('result-container');
+            const status = order.delivery_status || 'Pending';
+            
+            let statusColor = 'bg-amber-50 text-amber-700 border-amber-200';
+            let stepProgress = '1/3';
+            if (status === 'Accepted') { statusColor = 'bg-blue-50 text-blue-700 border-blue-200'; stepProgress = '2/3'; }
+            if (status === 'Delivered') { statusColor = 'bg-emerald-50 text-emerald-700 border-emerald-200'; stepProgress = '3/3'; }
+
+            container.innerHTML = `
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-4">
+                    <div class="flex justify-between items-center border-b pb-3">
+                        <div>
+                            <span class="text-xs font-bold text-gray-400 uppercase">Dalab ID</span>
+                            <h3 class="font-bold text-emerald-700 text-base">${order.id}</h3>
+                        </div>
+                        <span class="text-xs font-semibold px-2.5 py-1 rounded-full border ${statusColor}">${status}</span>
+                    </div>
+
+                    <div class="space-y-2 text-xs">
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Ganacsiga:</span>
+                            <span class="font-bold text-gray-800">${order.merchant_name}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Alaabta:</span>
+                            <span class="font-medium text-gray-800">${order.item_details}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Xaafadda (Zone):</span>
+                            <span class="font-medium text-gray-800">${order.zone}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Lacagta:</span>
+                            <span class="font-bold text-gray-800">$${Number(order.amount).toFixed(2)} (${order.payment_status})</span>
+                        </div>
+                        ${order.driver_name ? `
+                            <div class="flex justify-between pt-2 border-t">
+                                <span class="text-gray-500">Darawalka Xilsaaran:</span>
+                                <span class="font-bold text-blue-600">🛵 ${order.driver_name}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="bg-gray-50 p-3 rounded-lg text-center text-xs text-gray-500">
+                        Xaaladda Rasmiga ah: <strong class="text-gray-800">${status}</strong>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Live updates if tracking is active
+        subscribeToDeliveries((payload) => {
+            if (activeTrackedId && payload.new && payload.new.id.includes(activeTrackedId)) {
+                renderTrackingCard(payload.new);
+            }
+        });
+
+        document.getElementById('btn-search').addEventListener('click', trackOrder);
+        document.getElementById('search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') trackOrder();
+        });
+    </script>
+</body>
+</html>
