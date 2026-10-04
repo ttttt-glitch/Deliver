@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Garowe Express - Driver Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans antialiased pb-24">
 
@@ -30,23 +29,26 @@
         </div>
     </main>
 
-    <script type="module">
-        import { supabase } from './supabase-config.js';
-
+    <script>
+        const SUPABASE_URL = "https://caxcppreyuyyobhjjciy.supabase.co/rest/v1";
+        const SUPABASE_KEY = "sb_publishable_x3q2HIrBuWLv-AlGQ5LUgQ_uHolKke_";
         const DRIVER_NAME = "Darawal Garowe #1";
 
         async function fetchDriverOrders() {
             const container = document.getElementById('driver-orders-container');
             try {
-                const { data: orders, error } = await supabase
-                    .from('deliveries')
-                    .select('*')
-                    .order('created_at', { ascending: false });
+                const response = await fetch(`${SUPABASE_URL}/deliveries?select=*&order=created_at.desc`, {
+                    headers: {
+                        "apikey": SUPABASE_KEY,
+                        "Authorization": `Bearer ${SUPABASE_KEY}`
+                    }
+                });
 
-                if (error) {
-                    throw error;
+                if (!response.ok) {
+                    throw new Error(`Database error: ${response.statusText}`);
                 }
 
+                const orders = await response.json();
                 renderDriverOrders(orders || []);
             } catch (err) {
                 console.error('Fetch error:', err);
@@ -102,28 +104,31 @@
         }
 
         window.updateStatus = async function(id, newStatus) {
-            const { error } = await supabase
-                .from('deliveries')
-                .update({ delivery_status: newStatus, driver_name: DRIVER_NAME })
-                .eq('id', id);
+            try {
+                const response = await fetch(`${SUPABASE_URL}/deliveries?id=eq.${id}`, {
+                    method: 'PATCH',
+                    headers: {
+                        "apikey": SUPABASE_KEY,
+                        "Authorization": `Bearer ${SUPABASE_KEY}`,
+                        "Content-Type": "application/json",
+                        "Prefer": "return=minimal"
+                    },
+                    body: JSON.stringify({ delivery_status: newStatus, driver_name: DRIVER_NAME })
+                });
 
-            if (error) {
-                alert('Error updating order: ' + error.message);
-            } else {
+                if (!response.ok) {
+                    throw new Error('Failed to update status');
+                }
                 fetchDriverOrders();
+            } catch (err) {
+                alert('Error updating order: ' + err.message);
             }
         };
 
         window.addEventListener('DOMContentLoaded', () => {
             fetchDriverOrders();
-            
-            // Realtime listener
-            supabase
-                .channel('public:deliveries')
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
-                    fetchDriverOrders();
-                })
-                .subscribe();
+            // Auto refresh every 5 seconds as a reliable fallback live mechanism
+            setInterval(fetchDriverOrders, 5000);
         });
     </script>
 </body>
