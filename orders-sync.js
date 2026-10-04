@@ -1,5 +1,5 @@
 /**
- * Module 2: Cloud Sync Engine (Supabase + Offline Fallback)
+ * Module 2: Cloud Sync Engine (Supabase + Offline Fallback + Realtime)
  */
 import { supabase } from './supabase-config.js';
 import { getCurrentShop } from './auth.js';
@@ -99,4 +99,40 @@ export async function syncOfflineOrders() {
     }
 
     localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remainingQueue));
+}
+
+/**
+ * Real-time WebSocket Subscription for Live Cross-Screen Updates
+ */
+export function subscribeToDeliveries(onUpdateCallback) {
+    return supabase
+        .channel('public:deliveries')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, (payload) => {
+            console.log('Realtime change received on deliveries table:', payload);
+            onUpdateCallback(payload);
+        })
+        .subscribe();
+}
+
+/**
+ * Driver Action: Update delivery status (e.g., Pending -> Accepted -> Delivered)
+ */
+export async function updateDeliveryStatus(orderId, newStatus, driverName = 'Driver Garowe') {
+    try {
+        const { data, error } = await supabase
+            .from('deliveries')
+            .update({ 
+                delivery_status: newStatus, 
+                driver_name: driverName 
+            })
+            .eq('id', orderId)
+            .select();
+
+        if (error) throw error;
+        console.log(`Order ${orderId} status updated to ${newStatus} by ${driverName}`);
+        return { success: true, data };
+    } catch (err) {
+        console.error('Error updating order status in cloud:', err.message);
+        return { success: false, error: err.message };
+    }
 }
