@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Garowe Express - Driver Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ✅ Supabase v2 client (required for sb_publishable_ keys) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans antialiased pb-24">
 
@@ -29,46 +31,51 @@
         </div>
     </main>
 
-    <script>
-        const SUPABASE_URL = "https://caxcppreyuyyobhjjciy.supabase.co/rest/v1";
-        const SUPABASE_KEY = "sb_publishable_x3q2HIrBuWLv-AlGQ5LUgQ_uHolKke_";
+    <!-- ✅ type="module" is REQUIRED for `import` statements to work -->
+    <script type="module">
+        // ✅ Import from the shared config — NO hardcoded URL or key.
+        // This eliminates the typo and truncation bugs forever.
+        import { supabase } from './supabase-config.js';
+
         const DRIVER_NAME = "Darawal Garowe #1";
+        const POLL_INTERVAL_MS = 5000;
 
         async function fetchDriverOrders() {
             const container = document.getElementById('driver-orders-container');
             try {
-                const response = await fetch(`${SUPABASE_URL}/deliveries?select=*&order=created_at.desc`, {
-                    headers: {
-                        "apikey": SUPABASE_KEY,
-                        "Authorization": `Bearer ${SUPABASE_KEY}`
-                    }
-                });
+                const { data: orders, error } = await supabase
+                    .from('deliveries')
+                    .select('*')
+                    .order('created_at', { ascending: false });
 
-                if (!response.ok) {
-                    throw new Error(`Database error: ${response.statusText}`);
-                }
-
-                const orders = await response.json();
+                if (error) throw error;
                 renderDriverOrders(orders || []);
             } catch (err) {
                 console.error('Fetch error:', err);
-                container.innerHTML = `<div class="bg-red-50 p-4 rounded-xl text-center text-red-600 text-xs border border-red-200">Error loading orders: ${err.message}</div>`;
+                container.innerHTML = `
+                    <div class="bg-red-50 p-4 rounded-xl text-center text-red-600 text-xs border border-red-200">
+                        Error loading orders: ${err.message}
+                    </div>`;
             }
         }
 
         function renderDriverOrders(orders) {
             const container = document.getElementById('driver-orders-container');
             container.innerHTML = '';
-            
+
             const pendingOrders = orders.filter(o => {
                 const status = (o.delivery_status || 'Pending').toLowerCase();
                 return status === 'pending' || status === '';
             });
 
-            document.getElementById('pending-count').innerText = `${pendingOrders.length} pending`;
+            document.getElementById('pending-count').innerText =
+                `${pendingOrders.length} pending`;
 
             if (orders.length === 0) {
-                container.innerHTML = `<div class="bg-white p-6 rounded-xl text-center text-gray-400 text-sm border border-gray-100">Ma jiraan dalabyo hadda taagan.</div>`;
+                container.innerHTML = `
+                    <div class="bg-white p-6 rounded-xl text-center text-gray-400 text-sm border border-gray-100">
+                        Ma jiraan dalabyo hadda taagan.
+                    </div>`;
                 return;
             }
 
@@ -79,21 +86,39 @@
                 card.className = "bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-2";
                 card.innerHTML = `
                     <div class="flex justify-between items-center">
-                        <span class="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">ID: ${order.id ? String(order.id).slice(0,6) : 'N/A'}</span>
-                        <span class="text-xs font-semibold px-2 py-0.5 rounded border ${isPending ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}">${order.delivery_status || 'Pending'}</span>
+                        <span class="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                            ID: ${order.id ? String(order.id).slice(0,6) : 'N/A'}
+                        </span>
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded border ${
+                            isPending
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }">${order.delivery_status || 'Pending'}</span>
                     </div>
                     <div>
-                        <h4 class="font-bold text-gray-900 text-sm">${order.merchant_name || 'Unknown Merchant'}</h4>
-                        <p class="text-xs text-gray-600 mt-0.5">📦 ${order.item_details || 'No details'} ($${order.amount || 0})</p>
-                        <p class="text-xs text-gray-400 mt-1">📍 Xaafadda: ${order.zone || 'N/A'} | 📱 ${order.phone || 'N/A'}</p>
+                        <h4 class="font-bold text-gray-900 text-sm">
+                            ${order.merchant_name || 'Unknown Merchant'}
+                        </h4>
+                        <p class="text-xs text-gray-600 mt-0.5">
+                            📦 ${order.item_details || 'No details'} ($${order.amount || 0})
+                        </p>
+                        <p class="text-xs text-gray-400 mt-1">
+                            📍 Xaafadda: ${order.zone || 'N/A'} | 📱 ${order.phone || 'N/A'}
+                        </p>
                     </div>
                     <div class="pt-2 flex gap-2">
                         ${isPending ? `
-                            <button onclick="updateStatus('${order.id}', 'Accepted')" class="w-full bg-blue-600 text-white py-2 rounded-lg text-xs font-semibold hover:bg-blue-700 transition">
+                            <button
+                                data-action="accept"
+                                data-id="${order.id}"
+                                class="w-full bg-blue-600 text-white py-2 rounded-lg text-xs font-semibold hover:bg-blue-700 transition">
                                 Accept Order (Ogolaado)
                             </button>
                         ` : `
-                            <button onclick="updateStatus('${order.id}', 'Delivered')" class="w-full bg-emerald-600 text-white py-2 rounded-lg text-xs font-semibold hover:bg-emerald-700 transition">
+                            <button
+                                data-action="deliver"
+                                data-id="${order.id}"
+                                class="w-full bg-emerald-600 text-white py-2 rounded-lg text-xs font-semibold hover:bg-emerald-700 transition">
                                 Mark Delivered (La Gaarsiiyay)
                             </button>
                         `}
@@ -101,33 +126,39 @@
                 `;
                 container.appendChild(card);
             });
+
+            // ✅ Attach listeners in JS instead of inline onclick — cleaner and safer
+            container.querySelectorAll('button[data-action]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-id');
+                    const action = btn.getAttribute('data-action');
+                    const newStatus = action === 'accept' ? 'Accepted' : 'Delivered';
+                    updateStatus(id, newStatus);
+                });
+            });
         }
 
-        window.updateStatus = async function(id, newStatus) {
+        async function updateStatus(id, newStatus) {
             try {
-                const response = await fetch(`${SUPABASE_URL}/deliveries?id=eq.${id}`, {
-                    method: 'PATCH',
-                    headers: {
-                        "apikey": SUPABASE_KEY,
-                        "Authorization": `Bearer ${SUPABASE_KEY}`,
-                        "Content-Type": "application/json",
-                        "Prefer": "return=minimal"
-                    },
-                    body: JSON.stringify({ delivery_status: newStatus, driver_name: DRIVER_NAME })
-                });
+                const { error } = await supabase
+                    .from('deliveries')
+                    .update({
+                        delivery_status: newStatus,
+                        driver_name: DRIVER_NAME
+                    })
+                    .eq('id', id);
 
-                if (!response.ok) {
-                    throw new Error('Failed to update status');
-                }
+                if (error) throw error;
                 fetchDriverOrders();
             } catch (err) {
+                console.error('Update error:', err);
                 alert('Error updating order: ' + err.message);
             }
-        };
+        }
 
         window.addEventListener('DOMContentLoaded', () => {
             fetchDriverOrders();
-            setInterval(fetchDriverOrders, 5000);
+            setInterval(fetchDriverOrders, POLL_INTERVAL_MS);
         });
     </script>
 </body>
