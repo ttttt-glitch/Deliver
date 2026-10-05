@@ -3,8 +3,8 @@
  * Load client via CDN in HTML: <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
  */
 
-const SUPABASE_URL = "https://caxcppreyuyyobhjciy.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_x3q2HIrBuWLv-AlGQ5LUgQ_uHolKke_";
+const SUPABASE_URL = "https://caxcppreyuyyobhjjciy.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_qnpdMZwENjluUVxRxMk3Jg_jXcN00aL";
 
 export const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
