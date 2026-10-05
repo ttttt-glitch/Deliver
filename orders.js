@@ -1,30 +1,15 @@
 /**
  * Module 2: Multi-Tenant & Offline-Safe Order Controller
  */
+import { supabase } from './supabase-config.js';
 import { getCurrentShop } from './auth.js';
-
-/**
- * @typedef {Object} Order
- * @property {string} id
- * @property {string} shop_id
- * @property {string} merchant_name
- * @property {string} phone
- * @property {string} zone
- * @property {string} item_details
- * @property {number} amount
- * @property {string} payment_status
- * @property {string} delivery_status
- * @property {string} created_at
- */
 
 const STORAGE_KEY = 'garowe_express_all_orders';
 
-export function saveNewOrder(formData) {
+export async function saveNewOrder(formData) {
     const currentShopId = getCurrentShop();
     
-    /** @type {Order} */
     const newOrder = {
-        id: 'ORD-' + Math.floor(1000 + Math.random() * 9000),
         shop_id: currentShopId,
         merchant_name: formData.merchant_name,
         phone: formData.phone,
@@ -33,23 +18,35 @@ export function saveNewOrder(formData) {
         amount: parseFloat(formData.amount) || 0,
         payment_status: formData.payment_status || 'Unpaid',
         delivery_status: 'Pending',
+        synced: true,
         created_at: new Date().toISOString()
     };
 
+    // 1. Save to localStorage (offline-safe backup)
     const rawData = localStorage.getItem(STORAGE_KEY);
-    /** @type {Order[]} */
     const allOrders = rawData ? JSON.parse(rawData) : [];
-    
-    allOrders.push(newOrder);
+    allOrders.push({ ...newOrder, id: 'ORD-' + Date.now() });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(allOrders));
-    return newOrder;
+
+    // 2. Push to Supabase (so drivers see it)
+    try {
+        const { data, error } = await supabase
+            .from('deliveries')
+            .insert([newOrder])
+            .select();
+
+        if (error) throw error;
+        console.log("✅ Order pushed to Supabase:", data);
+        return data[0];
+    } catch (err) {
+        console.warn("⚠️ Cloud save failed (saved locally):", err.message);
+        return newOrder;
+    }
 }
 
 export function getMerchantOrders() {
     const currentShopId = getCurrentShop();
     const rawData = localStorage.getItem(STORAGE_KEY);
-    /** @type {Order[]} */
     const allOrders = rawData ? JSON.parse(rawData) : [];
-    
     return allOrders.filter(order => order.shop_id === currentShopId);
 }
