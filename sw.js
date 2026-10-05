@@ -1,4 +1,4 @@
-const CACHE_NAME = 'garowe-express-v20'; // ← bump version to force update
+const CACHE_NAME = 'garowe-express-v22'; // ← bump version to force update
 const ASSETS_TO_CACHE = [
     './index.html',
     './driver.html',
