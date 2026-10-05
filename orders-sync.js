@@ -1,5 +1,5 @@
 /**
- * Module 2: Cloud Sync Engine (Supabase + Realtime)
+ * Module 2: Cloud Sync Engine (Supabase + REST/Client Integration)
  */
 import { supabase } from './supabase-config.js';
 import { getCurrentShop } from './auth.js';
@@ -9,8 +9,8 @@ const OFFLINE_QUEUE_KEY = 'garowe_express_offline_queue';
 export async function saveOrderToCloud(formData) {
     const currentShopId = getCurrentShop();
     
+    // Let Supabase auto-generate the UUID id to prevent type mismatch errors
     const orderRecord = {
-        id: 'ORD-' + Math.floor(1000 + Math.random() * 9000),
         shop_id: currentShopId,
         merchant_name: formData.merchant_name,
         phone: formData.phone,
@@ -78,9 +78,14 @@ export async function syncOfflineOrders() {
 
     for (const order of queue) {
         try {
+            // Remove local fallback markers before pushing up
+            const cleanOrder = { ...order };
+            delete cleanOrder.synced;
+            delete cleanOrder.id; // Let database assign safe UUID
+
             const { error } = await supabase
                 .from('deliveries')
-                .insert([order]);
+                .insert([cleanOrder]);
 
             if (error) {
                 remainingQueue.push(order);
